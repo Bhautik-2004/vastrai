@@ -3,4 +3,4 @@ streamlit
 transformers
 tensorflow
 numpy
-keras
+keras<3.0.0
