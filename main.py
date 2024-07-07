@@ -2,19 +2,20 @@ import streamlit as st
 import pandas as pd
 from PIL import Image
 import os
-from transformers import pipeline
+from transformers import AutoTokenizer, TFAutoModelForSequenceClassification
 
+# Initialize the tokenizer and model
+tokenizer = AutoTokenizer.from_pretrained("ilsilfverskiold/tech-keywords-extractor")
+model = TFAutoModelForSequenceClassification.from_pretrained("ilsilfverskiold/tech-keywords-extractor")
 
-
-# Initialize the keyword extraction pipeline
-pipe = pipeline("text2text-generation", model="ilsilfverskiold/tech-keywords-extractor")
-
-# Load dataset
+# Load dataset (replace with your actual dataset)
 df = pd.read_csv("styles.csv")
 
 # Define a function to parse the query and extract keywords
 def parse_query(query):
-    result = pipe(query)[0]['generated_text']
+    inputs = tokenizer(query, return_tensors="pt", max_length=512, truncation=True)
+    outputs = model.generate(**inputs)
+    result = tokenizer.decode(outputs[0], skip_special_tokens=True)
     keywords = result.split(', ')
     st.write(f"**Extracted Keywords:** {keywords}")  # Debugging line to check extracted keywords
     return keywords
@@ -39,22 +40,32 @@ def filter_products(df, keywords):
             mask = mask | sub_mask_df.any(axis=1)
     return df[mask]
 
-# Function to display filtered products
+# Function to display filtered products in a grid layout
 def display_results(filtered_products):
     if filtered_products.empty:
         st.write("No products found.")
     else:
-        for index, row in filtered_products.head(10).iterrows():  # Limit to top 10 items
-            st.write(f"**Product ID:** {row['id']}")
-            st.write(f"**Product Name:** {row['productDisplayName']}")
-            st.write(f"**Base Colour:** {row['baseColour']}")
-            st.write(f"**Price:** {row['price'] if 'price' in row else 'N/A'}")
-            image_path = os.path.join("images",
-                                      f"{row['id']}.jpg")  # Assuming image filenames are the same as product IDs
-            if os.path.exists(image_path):
-                image = Image.open(image_path)
-                st.image(image, caption=row['productDisplayName'])
-            st.write("---")
+        num_items = len(filtered_products)
+        items_per_row = 3
+        num_rows = (num_items - 1) // items_per_row + 1
+
+        for i in range(num_rows):
+            row_items = filtered_products.iloc[i * items_per_row:(i + 1) * items_per_row]
+            row_container = st.container()  # Container for each row
+            with row_container:
+                st.write("<div style='display:flex; flex-wrap: wrap;'>", unsafe_allow_html=True)
+                for index, row in row_items.iterrows():
+                    st.write("<div style='border: 1px solid black; padding: 10px; margin: 10px; flex: 1; max-width: 30%; box-sizing: border-box;'>", unsafe_allow_html=True)
+                    st.write(f"**Product ID:** {row['id']}")
+                    st.write(f"**Product Name:** {row['productDisplayName']}")
+                    st.write(f"**Base Colour:** {row['baseColour']}")
+                    st.write(f"**Price:** {row['price'] if 'price' in row else 'N/A'}")
+                    image_path = os.path.join("images", f"{row['id']}.jpg")
+                    if os.path.exists(image_path):
+                        image = Image.open(image_path)
+                        st.image(image, caption=row['productDisplayName'], width=150)
+                    st.write("</div>", unsafe_allow_html=True)
+                st.write("</div>", unsafe_allow_html=True)
 
 # Streamlit app
 st.set_page_config(layout="wide")
@@ -103,11 +114,11 @@ st.markdown("""
         color: red !important;
         font-size: 18px !important;
         font-weight: bold !important;
-        border-radius: 21px;
     }
     /* Custom styling for text input */
     .stTextInput input {
-        border-radius: 21px !important;
+        border: 2px solid #931820 !important;
+        border-radius: 10px !important;
         padding: 8px 12px !important;
         font-size: 16px !important;
         color: #931820 !important;
@@ -116,20 +127,15 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.header("Vastr:red[Ai]", divider='rainbow')
-st.warning("⚠️ If you get any error, try reloading the website :)")
-st.warning("⚠️ Somtimes, you won't get relevant recommendations")
+st.warning("If you get any error, try reloading the website :)")
 
 # Sidebar
-st.sidebar.header("Vastr:red[Ai] ✨")
 st.sidebar.subheader("Model Information")
 st.sidebar.write("""
 - **Model:** VastrAi
 - **Description:** Recommends fashion items based on user input.
 - **Version:** 1.1.0
-- **Developer:** Bhautik Vaghamshi
 """)
-st.sidebar.page_link("https://www.instagram.com/bhautikvaghamshi/", label="My Instagram Profile")
-st.sidebar.page_link("https://www.linkedin.com/in/bhautik-vaghamshi-858a0b1b2/", label="My LinkedIn Profile")
 
 st.sidebar.subheader("Recommendations")
 
@@ -152,26 +158,22 @@ with st.sidebar:
         query = "Show me summer clothes"
         keywords = parse_query(query)
         filtered_products = filter_products(df, keywords)
-        with main_column:
-            display_results(filtered_products)
+        display_results(filtered_products)
 
     if st.button("Find me a winter jacket"):
         query = "Find me a winter jacket"
         keywords = parse_query(query)
         filtered_products = filter_products(df, keywords)
-        with main_column:
-            display_results(filtered_products)
+        display_results(filtered_products)
 
     if st.button("Suggest a casual outfit"):
         query = "Suggest a casual outfit"
         keywords = parse_query(query)
         filtered_products = filter_products(df, keywords)
-        with main_column:
-            display_results(filtered_products)
+        display_results(filtered_products)
 
     if st.button("Recommend some formal wear"):
         query = "Recommend some formal wear"
         keywords = parse_query(query)
         filtered_products = filter_products(df, keywords)
-        with main_column:
-            display_results(filtered_products)
+        display_results(filtered_products)
